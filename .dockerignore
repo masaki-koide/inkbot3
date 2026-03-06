@@ -1,0 +1,10 @@
+node_modules
+dist
+generated
+data
+.env
+.git
+.claude
+.kiro
+*.db
+*.db-journal

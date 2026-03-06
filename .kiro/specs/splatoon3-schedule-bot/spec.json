@@ -1,0 +1,22 @@
+{
+  "feature_name": "splatoon3-schedule-bot",
+  "created_at": "2026-02-19T13:05:48Z",
+  "updated_at": "2026-02-19T13:25:00Z",
+  "language": "ja",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": false
+    }
+  },
+  "ready_for_implementation": false
+}

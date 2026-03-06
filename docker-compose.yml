@@ -1,0 +1,13 @@
+services:
+  inkbot3:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Tokyo
+    volumes:
+      - inkbot3-data:/app/data
+
+volumes:
+  inkbot3-data:

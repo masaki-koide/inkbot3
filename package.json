@@ -1,0 +1,39 @@
+{
+  "name": "inkbot3",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file=.env dist/src/index.js",
+    "dev": "tsc --watch",
+    "trigger": "node --env-file=.env dist/src/trigger.js",
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/masaki-koide/inkbot3.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/masaki-koide/inkbot3/issues"
+  },
+  "homepage": "https://github.com/masaki-koide/inkbot3#readme",
+  "description": "",
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node-cron": "3.0.11",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
+  },
+  "dependencies": {
+    "@prisma/adapter-better-sqlite3": "7.4.0",
+    "@prisma/client": "7.4.0",
+    "better-sqlite3": "12.6.2",
+    "discord.js": "14.25.1",
+    "node-cron": "4.2.1",
+    "prisma": "7.4.0",
+    "zod": "4.3.6"
+  }
+}
