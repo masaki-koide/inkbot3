@@ -6,8 +6,11 @@ packages:
   - ca-certificates
   - curl
   - gnupg
+  - unattended-upgrades
+  - fail2ban
 
 runcmd:
+  # Docker
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   - chmod a+r /etc/apt/keyrings/docker.asc
@@ -17,3 +20,34 @@ runcmd:
   - systemctl enable docker
   - systemctl start docker
   - usermod -aG docker ubuntu
+
+  # unattended-upgrades
+  - dpkg-reconfigure -plow unattended-upgrades
+
+  # SSH hardening
+  - |
+    cat > /etc/ssh/sshd_config.d/99-hardening.conf <<'EOF'
+    PermitRootLogin no
+    AuthenticationMethods publickey
+    PubkeyAuthentication yes
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PermitEmptyPasswords no
+    MaxAuthTries 3
+    X11Forwarding no
+    AllowUsers ubuntu
+    EOF
+  - systemctl restart sshd
+
+  # fail2ban
+  - |
+    cat > /etc/fail2ban/jail.local <<'EOF'
+    [sshd]
+    enabled = true
+    mode = aggressive
+    maxretry = 3
+    bantime = 1h
+    findtime = 10m
+    EOF
+  - systemctl enable fail2ban
+  - systemctl restart fail2ban
