@@ -28,6 +28,8 @@ COPY prisma/ prisma/
 COPY prisma.config.ts ./
 COPY entrypoint.sh ./
 
+COPY .sqliterc /home/appuser/.sqliterc
+
 RUN chmod +x entrypoint.sh \
     && adduser --disabled-password --gecos '' appuser \
     && mkdir -p data \
