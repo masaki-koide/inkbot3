@@ -171,7 +171,7 @@ describe("handleSubscribe", () => {
 
   it("guild.name が取得できない場合に unknown がログに記録される", async () => {
     const interaction = createMockInteraction({ guildId: "guild-1" });
-    (interaction as Record<string, unknown>).guild = { name: null };
+    (interaction as unknown as Record<string, unknown>).guild = { name: null };
     await handleSubscribe(interaction, repo, commandLogRepo);
 
     expect(commandLogRepo.log).toHaveBeenCalledWith(
@@ -184,7 +184,7 @@ describe("handleSubscribe", () => {
 
   it("channel.name が取得できない場合に unknown がログに記録される", async () => {
     const interaction = createMockInteraction();
-    (interaction as Record<string, unknown>).channel = { name: null };
+    (interaction as unknown as Record<string, unknown>).channel = { name: null };
     await handleSubscribe(interaction, repo, commandLogRepo);
 
     expect(commandLogRepo.log).toHaveBeenCalledWith(
@@ -196,7 +196,7 @@ describe("handleSubscribe", () => {
 
   it("channel が null の場合に unknown がログに記録される", async () => {
     const interaction = createMockInteraction();
-    (interaction as Record<string, unknown>).channel = null;
+    (interaction as unknown as Record<string, unknown>).channel = null;
     await handleSubscribe(interaction, repo, commandLogRepo);
 
     expect(commandLogRepo.log).toHaveBeenCalledWith(
