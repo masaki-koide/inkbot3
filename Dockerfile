@@ -17,7 +17,10 @@ FROM node:22-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends sqlite3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends sqlite3 && rm -rf /var/lib/apt/lists/* \
+    && adduser --disabled-password --gecos '' appuser \
+    && mkdir -p data \
+    && chown appuser:appuser data
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
@@ -25,15 +28,10 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist/ dist/
 COPY --from=build /app/generated/ generated/
 COPY prisma/ prisma/
-COPY prisma.config.ts ./
-COPY entrypoint.sh ./
-
+COPY prisma.config.ts entrypoint.sh ./
 COPY .sqliterc /home/appuser/.sqliterc
 
-RUN chmod +x entrypoint.sh \
-    && adduser --disabled-password --gecos '' appuser \
-    && mkdir -p data \
-    && chown -R appuser:appuser /app
+RUN chmod +x entrypoint.sh
 
 USER appuser
 
