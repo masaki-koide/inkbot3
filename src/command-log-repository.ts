@@ -8,6 +8,7 @@ export interface CommandLogInput {
   channelName: string;
   userId: string;
   userName: string;
+  userDisplayName: string;
   options: string | null;
 }
 
@@ -23,6 +24,7 @@ export function createCommandLogRepository(prisma: PrismaClient) {
           channelName: input.channelName,
           userId: input.userId,
           userName: input.userName,
+          userDisplayName: input.userDisplayName,
           options: input.options,
         },
       });

@@ -28,6 +28,7 @@ describe("createCommandLogRepository", () => {
       channelName: "general",
       userId: "user-1",
       userName: "testuser",
+      userDisplayName: "Test User",
       options: "hour=7",
     });
 
@@ -40,6 +41,7 @@ describe("createCommandLogRepository", () => {
         channelName: "general",
         userId: "user-1",
         userName: "testuser",
+        userDisplayName: "Test User",
         options: "hour=7",
       },
     });
@@ -56,6 +58,7 @@ describe("createCommandLogRepository", () => {
       channelName: "general",
       userId: "user-1",
       userName: "testuser",
+      userDisplayName: "Test User",
       options: null,
     });
 
@@ -68,6 +71,7 @@ describe("createCommandLogRepository", () => {
         channelName: "general",
         userId: "user-1",
         userName: "testuser",
+        userDisplayName: "Test User",
         options: null,
       },
     });

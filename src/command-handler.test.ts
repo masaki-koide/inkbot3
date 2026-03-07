@@ -13,6 +13,7 @@ function createMockInteraction(
     channelName?: string;
     userId?: string;
     userName?: string;
+    userDisplayName?: string;
     hourValue?: number | null;
     commandName?: string;
     optionsData?: Array<{ name: string; value: unknown }>;
@@ -25,6 +26,7 @@ function createMockInteraction(
     channelName = "general",
     userId = "user-1",
     userName = "testuser",
+    userDisplayName = "Test User",
     hourValue = null,
     commandName = "subscribe",
     optionsData,
@@ -38,6 +40,7 @@ function createMockInteraction(
     guild: guildId ? { name: guildName } : null,
     channel: { name: channelName },
     user: { id: userId, username: userName },
+    member: guildId ? { displayName: userDisplayName } : null,
     options: {
       getInteger: vi.fn((name: string, _required?: boolean) => {
         if (name === "hour") return hourValue;
@@ -148,6 +151,7 @@ describe("handleSubscribe", () => {
       channelName: "general",
       userId: "user-1",
       userName: "testuser",
+      userDisplayName: "Test User",
       options: "hour=7",
     });
   });
@@ -295,6 +299,7 @@ describe("handleUnsubscribe", () => {
       channelName: "general",
       userId: "user-1",
       userName: "testuser",
+      userDisplayName: "Test User",
       options: null,
     });
   });

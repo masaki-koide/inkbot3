@@ -41,6 +41,7 @@ async function logCommandEvent(
       channelName: interaction.channel && "name" in interaction.channel ? interaction.channel.name ?? "" : "",
       userId: interaction.user.id,
       userName: interaction.user.username,
+      userDisplayName: interaction.member && "displayName" in interaction.member ? interaction.member.displayName ?? "" : "",
       options,
     });
   } catch (error) {

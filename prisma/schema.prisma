@@ -25,8 +25,9 @@ model CommandLog {
   guildName   String
   channelId   String
   channelName String
-  userId      String
-  userName    String
+  userId          String
+  userName        String
+  userDisplayName String
   options     String?
   createdAt   DateTime @default(now())
 }

@@ -8,6 +8,7 @@ CREATE TABLE "CommandLog" (
     "channelName" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "userName" TEXT NOT NULL,
+    "userDisplayName" TEXT NOT NULL,
     "options" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
