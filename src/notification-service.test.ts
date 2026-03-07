@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDiscordTime, formatDiscordRelative, filterByTimeWindow, mergeConsecutiveEntries, formatScheduleEntries, formatCoopEntries, formatEventEntries, formatFestEntries, buildScheduleEmbeds } from "./notification-service.js";
+import { formatDiscordTime, formatDiscordRelative, filterByTimeWindow, mergeConsecutiveEntries, formatScheduleEntries, formatCoopEntries, formatEventEntries, filterEventsByTimeWindow, formatFestEntries, buildScheduleEmbeds } from "./notification-service.js";
 import type { VsScheduleEntry, EventScheduleEntry, CoopScheduleEntry, FestScheduleEntry, Schedules } from "./splatoon3ink-client.js";
 
 describe("formatDiscordTime", () => {
@@ -41,9 +41,9 @@ describe("filterByTimeWindow", () => {
 
   it("24h以内に開始するエントリのみ返す", () => {
     const entries = [
-      { startTime: "2024-01-15T12:00:00Z" }, // +2h → 含む
-      { startTime: "2024-01-16T08:00:00Z" }, // +22h → 含む
-      { startTime: "2024-01-16T12:00:00Z" }, // +26h → 除外
+      { startTime: "2024-01-15T12:00:00Z", endTime: "2024-01-15T14:00:00Z" }, // +2h → 含む
+      { startTime: "2024-01-16T08:00:00Z", endTime: "2024-01-16T10:00:00Z" }, // +22h → 含む
+      { startTime: "2024-01-16T12:00:00Z", endTime: "2024-01-16T14:00:00Z" }, // +26h → 除外
     ];
     const result = filterByTimeWindow(entries, now);
     expect(result).toHaveLength(2);
@@ -53,7 +53,7 @@ describe("filterByTimeWindow", () => {
 
   it("ちょうど24h境界のエントリは含む", () => {
     const entries = [
-      { startTime: "2024-01-16T10:00:00Z" }, // ちょうど+24h
+      { startTime: "2024-01-16T10:00:00Z", endTime: "2024-01-16T12:00:00Z" }, // ちょうど+24h
     ];
     const result = filterByTimeWindow(entries, now);
     expect(result).toHaveLength(1);
@@ -61,7 +61,7 @@ describe("filterByTimeWindow", () => {
 
   it("24hを超えるエントリは除外する", () => {
     const entries = [
-      { startTime: "2024-01-16T10:00:01Z" }, // +24h1s
+      { startTime: "2024-01-16T10:00:01Z", endTime: "2024-01-16T12:00:00Z" }, // +24h1s
     ];
     const result = filterByTimeWindow(entries, now);
     expect(result).toHaveLength(0);
@@ -72,13 +72,24 @@ describe("filterByTimeWindow", () => {
     expect(result).toHaveLength(0);
   });
 
-  it("nowより前のstartTimeも含む", () => {
+  it("nowより前のstartTimeでもまだ終了していないエントリは含む", () => {
     const entries = [
-      { startTime: "2024-01-15T08:00:00Z" }, // -2h → 含む（開始済みだが表示対象）
-      { startTime: "2024-01-15T14:00:00Z" }, // +4h → 含む
+      { startTime: "2024-01-15T08:00:00Z", endTime: "2024-01-15T12:00:00Z" }, // -2h開始、まだ終了してない → 含む
+      { startTime: "2024-01-15T14:00:00Z", endTime: "2024-01-15T16:00:00Z" }, // +4h → 含む
     ];
     const result = filterByTimeWindow(entries, now);
     expect(result).toHaveLength(2);
+  });
+
+  it("endTimeがnow以前のエントリは除外する", () => {
+    const entries = [
+      { startTime: "2024-01-15T08:00:00Z", endTime: "2024-01-15T10:00:00Z" }, // ちょうどnowに終了 → 除外
+      { startTime: "2024-01-15T06:00:00Z", endTime: "2024-01-15T08:00:00Z" }, // nowより前に終了 → 除外
+      { startTime: "2024-01-15T08:00:00Z", endTime: "2024-01-15T10:00:01Z" }, // now+1s終了 → 含む
+    ];
+    const result = filterByTimeWindow(entries, now);
+    expect(result).toHaveLength(1);
+    expect(result[0].endTime).toBe("2024-01-15T10:00:01Z");
   });
 });
 
@@ -236,6 +247,60 @@ describe("formatCoopEntries", () => {
 
   it("空配列の場合はスケジュールなしを返す", () => {
     expect(formatCoopEntries([])).toBe("スケジュールなし");
+  });
+});
+
+describe("filterEventsByTimeWindow", () => {
+  const now = new Date("2024-01-15T10:00:00Z");
+
+  it("24h以内の timePeriods を持つイベントのみ返す", () => {
+    const entries: EventScheduleEntry[] = [
+      makeEventEntry({
+        event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "説明" },
+        timePeriods: [
+          { startTime: "2024-01-15T12:00:00Z", endTime: "2024-01-15T14:00:00Z" }, // 含む
+          { startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z" }, // 24h超 → 除外
+        ],
+      }),
+    ];
+    const result = filterEventsByTimeWindow(entries, now);
+    expect(result).toHaveLength(1);
+    expect(result[0].timePeriods).toHaveLength(1);
+    expect(result[0].timePeriods[0].startTime).toBe("2024-01-15T12:00:00Z");
+  });
+
+  it("全 timePeriods が24h超のイベントは除外する", () => {
+    const entries: EventScheduleEntry[] = [
+      makeEventEntry({
+        event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "説明" },
+        timePeriods: [
+          { startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z" },
+        ],
+      }),
+    ];
+    const result = filterEventsByTimeWindow(entries, now);
+    expect(result).toHaveLength(0);
+  });
+
+  it("endTimeがnow以前の timePeriods は除外する", () => {
+    const entries: EventScheduleEntry[] = [
+      makeEventEntry({
+        event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "説明" },
+        timePeriods: [
+          { startTime: "2024-01-15T08:00:00Z", endTime: "2024-01-15T10:00:00Z" }, // ちょうどnowに終了 → 除外
+          { startTime: "2024-01-15T12:00:00Z", endTime: "2024-01-15T14:00:00Z" }, // 含む
+        ],
+      }),
+    ];
+    const result = filterEventsByTimeWindow(entries, now);
+    expect(result).toHaveLength(1);
+    expect(result[0].timePeriods).toHaveLength(1);
+    expect(result[0].timePeriods[0].startTime).toBe("2024-01-15T12:00:00Z");
+  });
+
+  it("空配列を入力すると空配列を返す", () => {
+    const result = filterEventsByTimeWindow([], now);
+    expect(result).toHaveLength(0);
   });
 });
 
@@ -508,6 +573,22 @@ describe("buildScheduleEmbeds", () => {
   it("イベントマッチが空の場合はイベントEmbedが追加されない", () => {
     const schedules = makeSchedules({
       event: [],
+    });
+    const embeds = buildScheduleEmbeds(schedules, now);
+    expect(embeds).toHaveLength(5);
+    expect(embeds.every((e) => e.data.title !== "イベントマッチ")).toBe(true);
+  });
+
+  it("イベントマッチの全timePeriodsが24h超の場合はイベントEmbedが追加されない", () => {
+    const schedules = makeSchedules({
+      event: [
+        makeEventEntry({
+          event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "説明" },
+          timePeriods: [
+            { startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z" },
+          ],
+        }),
+      ],
     });
     const embeds = buildScheduleEmbeds(schedules, now);
     expect(embeds).toHaveLength(5);

@@ -23,12 +23,16 @@ export function formatDiscordRelative(isoString: string): string {
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
-export function filterByTimeWindow<T extends { readonly startTime: string }>(
+export function filterByTimeWindow<T extends { readonly startTime: string; readonly endTime: string }>(
   entries: ReadonlyArray<T>,
   now: Date
 ): ReadonlyArray<T> {
-  const cutoff = now.getTime() + TWENTY_FOUR_HOURS_MS;
-  return entries.filter((entry) => new Date(entry.startTime).getTime() <= cutoff);
+  const nowMs = now.getTime();
+  const cutoff = nowMs + TWENTY_FOUR_HOURS_MS;
+  return entries.filter((entry) =>
+    new Date(entry.endTime).getTime() > nowMs &&
+    new Date(entry.startTime).getTime() <= cutoff
+  );
 }
 
 export function mergeConsecutiveEntries(
@@ -77,6 +81,27 @@ export function formatScheduleEntries(
   }
 
   return lines.join("\n").trimEnd();
+}
+
+export function filterEventsByTimeWindow(
+  entries: ReadonlyArray<EventScheduleEntry>,
+  now: Date
+): ReadonlyArray<EventScheduleEntry> {
+  const nowMs = now.getTime();
+  const cutoff = nowMs + TWENTY_FOUR_HOURS_MS;
+
+  const result: EventScheduleEntry[] = [];
+  for (const entry of entries) {
+    const filteredPeriods = entry.timePeriods.filter(
+      (tp) =>
+        new Date(tp.endTime).getTime() > nowMs &&
+        new Date(tp.startTime).getTime() <= cutoff
+    );
+    if (filteredPeriods.length > 0) {
+      result.push({ ...entry, timePeriods: filteredPeriods });
+    }
+  }
+  return result;
 }
 
 export function formatEventEntries(
@@ -180,7 +205,8 @@ export function buildScheduleEmbeds(
   );
 
   // イベントマッチ: データ存在時のみ
-  const eventText = formatEventEntries(schedules.event);
+  const filteredEvents = filterEventsByTimeWindow(schedules.event, now);
+  const eventText = formatEventEntries(filteredEvents);
   if (eventText) {
     embeds.push(
       new EmbedBuilder()
