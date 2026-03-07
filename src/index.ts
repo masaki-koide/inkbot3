@@ -1,6 +1,7 @@
 import { loadConfig } from "./config.js";
 import { initDatabase, disconnectDatabase } from "./database.js";
 import { createNotificationRepository } from "./notification-repository.js";
+import { createCommandLogRepository } from "./command-log-repository.js";
 import { createBot, registerCommands, startBot } from "./bot.js";
 import { setupCommandHandler } from "./command-handler.js";
 import { startScheduler, stopScheduler } from "./scheduler.js";
@@ -10,10 +11,11 @@ async function main(): Promise<void> {
 
   const prisma = initDatabase(config.databaseUrl);
   const repo = createNotificationRepository(prisma);
+  const commandLogRepo = createCommandLogRepository(prisma);
 
   const client = createBot();
 
-  setupCommandHandler(client, repo);
+  setupCommandHandler(client, repo, commandLogRepo);
 
   await startBot(client, config.discordToken);
   await registerCommands(config.discordToken, config.discordApplicationId);

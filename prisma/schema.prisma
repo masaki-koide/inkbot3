@@ -17,3 +17,16 @@ model NotificationEntry {
 
   @@unique([guildId, channelId])
 }
+
+model CommandLog {
+  id          Int      @id @default(autoincrement())
+  commandName String
+  guildId     String
+  guildName   String
+  channelId   String
+  channelName String
+  userId      String
+  userName    String
+  options     String?
+  createdAt   DateTime @default(now())
+}

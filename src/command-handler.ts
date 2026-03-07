@@ -5,26 +5,53 @@ import {
   Events,
 } from "discord.js";
 import type { NotificationRepository } from "./notification-repository.js";
+import type { CommandLogRepository } from "./command-log-repository.js";
 import { Colors } from "./colors.js";
 
 export function setupCommandHandler(
   client: Client,
-  repo: NotificationRepository
+  repo: NotificationRepository,
+  commandLogRepo: CommandLogRepository
 ): void {
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === "subscribe") {
-      await handleSubscribe(interaction, repo);
+      await handleSubscribe(interaction, repo, commandLogRepo);
     } else if (interaction.commandName === "unsubscribe") {
-      await handleUnsubscribe(interaction, repo);
+      await handleUnsubscribe(interaction, repo, commandLogRepo);
     }
   });
 }
 
+async function logCommandEvent(
+  interaction: ChatInputCommandInteraction,
+  commandLogRepo: CommandLogRepository
+): Promise<void> {
+  try {
+    const options = interaction.options.data.length > 0
+      ? interaction.options.data.map((o) => `${o.name}=${o.value}`).join(",")
+      : null;
+
+    await commandLogRepo.log({
+      commandName: interaction.commandName,
+      guildId: interaction.guildId ?? "",
+      guildName: interaction.guild?.name ?? "",
+      channelId: interaction.channelId,
+      channelName: interaction.channel && "name" in interaction.channel ? interaction.channel.name ?? "" : "",
+      userId: interaction.user.id,
+      userName: interaction.user.username,
+      options,
+    });
+  } catch (error) {
+    console.error("コマンドログ記録エラー:", error);
+  }
+}
+
 export async function handleSubscribe(
   interaction: ChatInputCommandInteraction,
-  repo: NotificationRepository
+  repo: NotificationRepository,
+  commandLogRepo: CommandLogRepository
 ): Promise<void> {
   const channelId = interaction.channelId;
   const hour = interaction.options.getInteger("hour", false) ?? 7;
@@ -41,6 +68,8 @@ export async function handleSubscribe(
     });
     return;
   }
+
+  await logCommandEvent(interaction, commandLogRepo);
 
   try {
     const existing = await repo.findByGuildAndChannel(guildId, channelId);
@@ -74,7 +103,8 @@ export async function handleSubscribe(
 
 export async function handleUnsubscribe(
   interaction: ChatInputCommandInteraction,
-  repo: NotificationRepository
+  repo: NotificationRepository,
+  commandLogRepo: CommandLogRepository
 ): Promise<void> {
   const channelId = interaction.channelId;
   const guildId = interaction.guildId;
@@ -90,6 +120,8 @@ export async function handleUnsubscribe(
     });
     return;
   }
+
+  await logCommandEvent(interaction, commandLogRepo);
 
   try {
     const removed = await repo.remove(guildId, channelId);
