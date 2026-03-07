@@ -1,15 +1,14 @@
 import { type Client, EmbedBuilder, TextChannel } from "discord.js";
 import {
-  fetchBattleSchedules,
-  fetchCoopSchedules,
-  type BattleSchedules,
-  type ScheduleEntry,
+  fetchSchedules,
+  type Schedules,
+  type VsScheduleEntry,
   type EventScheduleEntry,
   type FestScheduleEntry,
   type CoopScheduleEntry,
-  type Rule,
-  type Stage,
-} from "./spla3-client.js";
+  type VsRule,
+  type VsStage,
+} from "./splatoon3ink-client.js";
 import { Colors } from "./colors.js";
 
 export function formatDiscordTime(isoString: string): string {
@@ -33,11 +32,11 @@ export function filterByTimeWindow<T extends { readonly startTime: string }>(
 }
 
 export function mergeConsecutiveEntries(
-  entries: ReadonlyArray<ScheduleEntry>
-): ReadonlyArray<ScheduleEntry> {
+  entries: ReadonlyArray<VsScheduleEntry>
+): ReadonlyArray<VsScheduleEntry> {
   if (entries.length === 0) return [];
 
-  const result: ScheduleEntry[] = [{ ...entries[0] }];
+  const result: VsScheduleEntry[] = [{ ...entries[0] }];
 
   for (let i = 1; i < entries.length; i++) {
     const prev = result[result.length - 1];
@@ -59,43 +58,8 @@ export function mergeConsecutiveEntries(
   return result;
 }
 
-export interface GroupedEventEntry {
-  readonly event: { readonly id: string; readonly name: string; readonly desc: string };
-  readonly rule: Rule;
-  readonly stages: ReadonlyArray<Stage>;
-  readonly timeRanges: ReadonlyArray<{ readonly startTime: string; readonly endTime: string }>;
-}
-
-export function groupEventEntries(
-  entries: ReadonlyArray<EventScheduleEntry>
-): ReadonlyArray<GroupedEventEntry> {
-  const groupMap = new Map<string, GroupedEventEntry>();
-  const order: string[] = [];
-
-  for (const entry of entries) {
-    const id = entry.event.id;
-    const existing = groupMap.get(id);
-    if (existing) {
-      groupMap.set(id, {
-        ...existing,
-        timeRanges: [...existing.timeRanges, { startTime: entry.startTime, endTime: entry.endTime }],
-      });
-    } else {
-      order.push(id);
-      groupMap.set(id, {
-        event: entry.event,
-        rule: entry.rule,
-        stages: entry.stages,
-        timeRanges: [{ startTime: entry.startTime, endTime: entry.endTime }],
-      });
-    }
-  }
-
-  return order.map((id) => groupMap.get(id)!);
-}
-
 export function formatScheduleEntries(
-  entries: ReadonlyArray<ScheduleEntry>,
+  entries: ReadonlyArray<VsScheduleEntry>,
   options: { readonly omitRule: boolean }
 ): string {
   if (entries.length === 0) return "スケジュールなし";
@@ -120,16 +84,14 @@ export function formatEventEntries(
 ): string | null {
   if (entries.length === 0) return null;
 
-  const grouped = groupEventEntries(entries);
-
-  return grouped
-    .map((group) => {
-      const timeRangeTexts = group.timeRanges.map(
+  return entries
+    .map((entry) => {
+      const timeRangeTexts = entry.timePeriods.map(
         (tr) => `${formatDiscordTime(tr.startTime)} 〜 ${formatDiscordTime(tr.endTime)}`
       );
-      const time = `${timeRangeTexts.join(", ")} (${formatDiscordRelative(group.timeRanges[0].startTime)})`;
-      const stages = group.stages.map((s) => s.name).join(", ");
-      return `**${group.event.name}**\n${group.event.desc}\n${time}\nルール: ${group.rule.name}\nステージ: ${stages}`;
+      const time = `${timeRangeTexts.join(", ")} (${formatDiscordRelative(entry.timePeriods[0].startTime)})`;
+      const stages = entry.stages.map((s) => s.name).join(", ");
+      return `**${entry.event.name}**\n${entry.event.desc}\n${time}\nルール: ${entry.rule.name}\nステージ: ${stages}`;
     })
     .join("\n\n");
 }
@@ -179,8 +141,7 @@ export function formatCoopEntries(
 }
 
 export function buildScheduleEmbeds(
-  battle: BattleSchedules,
-  coop: ReadonlyArray<CoopScheduleEntry>,
+  schedules: Schedules,
   now: Date
 ): EmbedBuilder[] {
   const embeds: EmbedBuilder[] = [];
@@ -188,14 +149,14 @@ export function buildScheduleEmbeds(
   // バトル4タイプ: 個別Embed（24hフィルタ → 連続統合 → フォーマット）
   const battleTypes: {
     title: string;
-    entries: ReadonlyArray<ScheduleEntry>;
+    entries: ReadonlyArray<VsScheduleEntry>;
     color: number;
     omitRule: boolean;
   }[] = [
-    { title: "ナワバリバトル", entries: battle.regular, color: Colors.Regular, omitRule: true },
-    { title: "バンカラマッチ チャレンジ", entries: battle.bankaraChallenge, color: Colors.Bankara, omitRule: false },
-    { title: "バンカラマッチ オープン", entries: battle.bankaraOpen, color: Colors.Bankara, omitRule: false },
-    { title: "Xマッチ", entries: battle.x, color: Colors.XMatch, omitRule: false },
+    { title: "ナワバリバトル", entries: schedules.regular, color: Colors.Regular, omitRule: true },
+    { title: "バンカラマッチ チャレンジ", entries: schedules.bankaraChallenge, color: Colors.Bankara, omitRule: false },
+    { title: "バンカラマッチ オープン", entries: schedules.bankaraOpen, color: Colors.Bankara, omitRule: false },
+    { title: "Xマッチ", entries: schedules.x, color: Colors.XMatch, omitRule: false },
   ];
 
   for (const { title, entries, color, omitRule } of battleTypes) {
@@ -215,12 +176,11 @@ export function buildScheduleEmbeds(
     new EmbedBuilder()
       .setColor(Colors.SalmonRun)
       .setTitle("サーモンラン")
-      .setDescription(formatCoopEntries(filterByTimeWindow(coop, now)))
+      .setDescription(formatCoopEntries(filterByTimeWindow(schedules.coop, now)))
   );
 
   // イベントマッチ: データ存在時のみ
-  const filteredEvents = filterByTimeWindow(battle.event, now);
-  const eventText = formatEventEntries(filteredEvents);
+  const eventText = formatEventEntries(schedules.event);
   if (eventText) {
     embeds.push(
       new EmbedBuilder()
@@ -231,7 +191,7 @@ export function buildScheduleEmbeds(
   }
 
   // フェス: データ存在時のみ
-  const filteredFest = filterByTimeWindow(battle.fest, now);
+  const filteredFest = filterByTimeWindow(schedules.fest, now);
   const festText = formatFestEntries(filteredFest);
   if (festText) {
     embeds.push(
@@ -258,14 +218,10 @@ export async function sendScheduleNotification(
     return;
   }
 
-  let battle: BattleSchedules;
-  let coop: ReadonlyArray<CoopScheduleEntry>;
+  let schedules: Schedules;
 
   try {
-    [battle, coop] = await Promise.all([
-      fetchBattleSchedules(),
-      fetchCoopSchedules(),
-    ]);
+    schedules = await fetchSchedules();
   } catch (error) {
     console.error("スケジュールデータの取得に失敗しました:", error);
     try {
@@ -288,7 +244,7 @@ export async function sendScheduleNotification(
     return;
   }
 
-  const embeds = buildScheduleEmbeds(battle, coop, new Date());
+  const embeds = buildScheduleEmbeds(schedules, new Date());
 
   // Discord APIの制限: 1メッセージあたり最大10 Embed
   const chunks: EmbedBuilder[][] = [];

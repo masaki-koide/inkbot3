@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Splatoon 3 schedule notification Discord bot (package name: `inkbot3`). Fetches battle/coop schedules from the Spla3 API (`spla3.yuu26.com`) and posts them as Discord embeds on a cron schedule. Users subscribe channels via slash commands.
+Splatoon 3 schedule notification Discord bot (package name: `inkbot3`). Fetches battle/coop schedules from splatoon3.ink API and posts them as Discord embeds on a cron schedule. Users subscribe channels via slash commands.
 
 ## Commands
 
@@ -29,8 +29,8 @@ Entry point: `src/index.ts` — wires together config, database, bot, commands, 
 3. `bot.ts` — Creates Discord.js client, registers slash commands (`/subscribe`, `/unsubscribe`)
 4. `command-handler.ts` — Handles interactions: subscribe upserts notification entry, unsubscribe removes it
 5. `scheduler.ts` — Cron job (every hour at :00) queries notifications for current hour, sends embeds
-6. `notification-service.ts` — Fetches schedules from Spla3 API, builds Discord embeds with 24h time window filter and consecutive entry merging
-7. `spla3-client.ts` — Typed API client with Zod validation, snake_case→camelCase conversion
+6. `notification-service.ts` — Fetches schedules from splatoon3.ink API, builds Discord embeds with 24h time window filter and consecutive entry merging
+7. `splatoon3ink-client.ts` — Typed API client with Zod validation, fetches schedules.json and locale/ja-JP.json in parallel, localizes names to Japanese
 
 **Data layer:**
 - `notification-repository.ts` — CRUD for `NotificationEntry` (factory function pattern, not class)

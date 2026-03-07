@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { formatDiscordTime, formatDiscordRelative, filterByTimeWindow, mergeConsecutiveEntries, groupEventEntries, formatScheduleEntries, formatCoopEntries, formatEventEntries, formatFestEntries, buildScheduleEmbeds } from "./notification-service.js";
-import type { ScheduleEntry, EventScheduleEntry, CoopScheduleEntry, FestScheduleEntry, BattleSchedules } from "./spla3-client.js";
+import { formatDiscordTime, formatDiscordRelative, filterByTimeWindow, mergeConsecutiveEntries, formatScheduleEntries, formatCoopEntries, formatEventEntries, formatFestEntries, buildScheduleEmbeds } from "./notification-service.js";
+import type { VsScheduleEntry, EventScheduleEntry, CoopScheduleEntry, FestScheduleEntry, Schedules } from "./splatoon3ink-client.js";
 
 describe("formatDiscordTime", () => {
   it("ISO 8601文字列を<t:UNIX:f>形式（日付+時刻）に変換する", () => {
@@ -82,11 +82,10 @@ describe("filterByTimeWindow", () => {
   });
 });
 
-function makeEntry(overrides: Partial<ScheduleEntry> & { startTime: string; endTime: string }): ScheduleEntry {
+function makeEntry(overrides: Partial<VsScheduleEntry> & { startTime: string; endTime: string }): VsScheduleEntry {
   return {
-    rule: { key: "area", name: "ガチエリア" },
-    stages: [{ id: 1, name: "ステージA", image: "" }, { id: 2, name: "ステージB", image: "" }],
-    isFest: false,
+    rule: { id: "VnNSdWxlLTE=", key: "area", name: "ガチエリア" },
+    stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "ステージA", image: "" }, { id: "VnNTdGFnZS0y", vsStageId: 2, name: "ステージB", image: "" }],
     ...overrides,
   };
 }
@@ -105,8 +104,8 @@ describe("mergeConsecutiveEntries", () => {
 
   it("異なるルールのエントリは統合しない", () => {
     const entries = [
-      makeEntry({ startTime: "2024-01-15T00:00:00Z", endTime: "2024-01-15T02:00:00Z", rule: { key: "area", name: "ガチエリア" } }),
-      makeEntry({ startTime: "2024-01-15T02:00:00Z", endTime: "2024-01-15T04:00:00Z", rule: { key: "clam", name: "ガチアサリ" } }),
+      makeEntry({ startTime: "2024-01-15T00:00:00Z", endTime: "2024-01-15T02:00:00Z", rule: { id: "VnNSdWxlLTE=", key: "area", name: "ガチエリア" } }),
+      makeEntry({ startTime: "2024-01-15T02:00:00Z", endTime: "2024-01-15T04:00:00Z", rule: { id: "VnNSdWxlLTQ=", key: "clam", name: "ガチアサリ" } }),
     ];
     const result = mergeConsecutiveEntries(entries);
     expect(result).toHaveLength(2);
@@ -114,8 +113,8 @@ describe("mergeConsecutiveEntries", () => {
 
   it("異なるステージのエントリは統合しない", () => {
     const entries = [
-      makeEntry({ startTime: "2024-01-15T00:00:00Z", endTime: "2024-01-15T02:00:00Z", stages: [{ id: 1, name: "A", image: "" }] }),
-      makeEntry({ startTime: "2024-01-15T02:00:00Z", endTime: "2024-01-15T04:00:00Z", stages: [{ id: 2, name: "B", image: "" }] }),
+      makeEntry({ startTime: "2024-01-15T00:00:00Z", endTime: "2024-01-15T02:00:00Z", stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "A", image: "" }] }),
+      makeEntry({ startTime: "2024-01-15T02:00:00Z", endTime: "2024-01-15T04:00:00Z", stages: [{ id: "VnNTdGFnZS0y", vsStageId: 2, name: "B", image: "" }] }),
     ];
     const result = mergeConsecutiveEntries(entries);
     expect(result).toHaveLength(2);
@@ -153,96 +152,23 @@ describe("mergeConsecutiveEntries", () => {
   });
 });
 
-function makeEventEntry(overrides: Partial<EventScheduleEntry> & { startTime: string; endTime: string; event: EventScheduleEntry["event"] }): EventScheduleEntry {
+function makeEventEntry(overrides: Partial<EventScheduleEntry> & { event: EventScheduleEntry["event"]; timePeriods: EventScheduleEntry["timePeriods"] }): EventScheduleEntry {
   return {
-    rule: { key: "area", name: "ガチエリア" },
-    stages: [{ id: 1, name: "ステージA", image: "" }],
-    isFest: false,
+    rule: { id: "VnNSdWxlLTE=", key: "area", name: "ガチエリア" },
+    stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "ステージA", image: "" }],
     ...overrides,
   };
 }
 
-describe("groupEventEntries", () => {
-  it("同一event.idの非隣接エントリがグルーピングされる", () => {
-    const entries: EventScheduleEntry[] = [
-      makeEventEntry({
-        startTime: "2024-01-15T00:00:00Z",
-        endTime: "2024-01-15T02:00:00Z",
-        event: { id: "ev1", name: "イベントA", desc: "説明A" },
-        rule: { key: "area", name: "ガチエリア" },
-        stages: [{ id: 1, name: "ステージA", image: "" }],
-      }),
-      makeEventEntry({
-        startTime: "2024-01-15T04:00:00Z",
-        endTime: "2024-01-15T06:00:00Z",
-        event: { id: "ev1", name: "イベントA", desc: "説明A" },
-        rule: { key: "area", name: "ガチエリア" },
-        stages: [{ id: 1, name: "ステージA", image: "" }],
-      }),
-    ];
-    const result = groupEventEntries(entries);
-    expect(result).toHaveLength(1);
-    expect(result[0].event.id).toBe("ev1");
-    expect(result[0].timeRanges).toHaveLength(2);
-    expect(result[0].timeRanges[0].startTime).toBe("2024-01-15T00:00:00Z");
-    expect(result[0].timeRanges[0].endTime).toBe("2024-01-15T02:00:00Z");
-    expect(result[0].timeRanges[1].startTime).toBe("2024-01-15T04:00:00Z");
-    expect(result[0].timeRanges[1].endTime).toBe("2024-01-15T06:00:00Z");
-  });
-
-  it("異なるevent.idのエントリが別グループになる", () => {
-    const entries: EventScheduleEntry[] = [
-      makeEventEntry({
-        startTime: "2024-01-15T00:00:00Z",
-        endTime: "2024-01-15T02:00:00Z",
-        event: { id: "ev1", name: "イベントA", desc: "説明A" },
-      }),
-      makeEventEntry({
-        startTime: "2024-01-15T02:00:00Z",
-        endTime: "2024-01-15T04:00:00Z",
-        event: { id: "ev2", name: "イベントB", desc: "説明B" },
-      }),
-    ];
-    const result = groupEventEntries(entries);
-    expect(result).toHaveLength(2);
-    expect(result[0].event.id).toBe("ev1");
-    expect(result[1].event.id).toBe("ev2");
-  });
-
-  it("空配列の入力時に空配列が返る", () => {
-    const result = groupEventEntries([]);
-    expect(result).toHaveLength(0);
-  });
-
-  it("グループにrule・stages・event情報が保持される", () => {
-    const entries: EventScheduleEntry[] = [
-      makeEventEntry({
-        startTime: "2024-01-15T00:00:00Z",
-        endTime: "2024-01-15T02:00:00Z",
-        event: { id: "ev1", name: "イベントA", desc: "説明A" },
-        rule: { key: "clam", name: "ガチアサリ" },
-        stages: [{ id: 1, name: "ステージX", image: "" }, { id: 2, name: "ステージY", image: "" }],
-      }),
-    ];
-    const result = groupEventEntries(entries);
-    expect(result).toHaveLength(1);
-    expect(result[0].event.name).toBe("イベントA");
-    expect(result[0].event.desc).toBe("説明A");
-    expect(result[0].rule.name).toBe("ガチアサリ");
-    expect(result[0].stages).toHaveLength(2);
-    expect(result[0].stages[0].name).toBe("ステージX");
-    expect(result[0].timeRanges).toHaveLength(1);
-  });
-});
 
 describe("formatScheduleEntries", () => {
   it("ルール・ステージ・時刻を表示する（タイトルなし）", () => {
-    const entries: ScheduleEntry[] = [
+    const entries: VsScheduleEntry[] = [
       makeEntry({
         startTime: "2024-01-15T10:00:00Z",
         endTime: "2024-01-15T12:00:00Z",
-        rule: { key: "area", name: "ガチエリア" },
-        stages: [{ id: 1, name: "ステージA", image: "" }, { id: 2, name: "ステージB", image: "" }],
+        rule: { id: "VnNSdWxlLTE=", key: "area", name: "ガチエリア" },
+        stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "ステージA", image: "" }, { id: "VnNTdGFnZS0y", vsStageId: 2, name: "ステージB", image: "" }],
       }),
     ];
     const result = formatScheduleEntries(entries, { omitRule: false });
@@ -256,11 +182,11 @@ describe("formatScheduleEntries", () => {
   });
 
   it("omitRule: trueでルール行を省略する", () => {
-    const entries: ScheduleEntry[] = [
+    const entries: VsScheduleEntry[] = [
       makeEntry({
         startTime: "2024-01-15T10:00:00Z",
         endTime: "2024-01-15T12:00:00Z",
-        rule: { key: "turf_war", name: "ナワバリバトル" },
+        rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" },
       }),
     ];
     const result = formatScheduleEntries(entries, { omitRule: true });
@@ -276,8 +202,8 @@ describe("formatScheduleEntries", () => {
 
 function makeCoopEntry(overrides: Partial<CoopScheduleEntry> & { startTime: string; endTime: string }): CoopScheduleEntry {
   return {
-    boss: { id: "boss1", name: "ヨコヅナ" },
-    stage: { id: 1, name: "シェケナダム", image: "" },
+    boss: { id: "Q29vcEVuZW15LTIz", name: "ヨコヅナ" },
+    stage: { id: "Q29vcFN0YWdlLTE=", name: "シェケナダム", image: "" },
     weapons: [{ name: "スプラシューター", image: "" }, { name: "スプラローラー", image: "" }],
     isBigRun: false,
     ...overrides,
@@ -317,28 +243,26 @@ describe("formatEventEntries", () => {
   it("Discordタイムスタンプ形式で時刻を表示する", () => {
     const entries: EventScheduleEntry[] = [
       makeEventEntry({
-        startTime: "2024-01-15T10:00:00Z",
-        endTime: "2024-01-15T12:00:00Z",
-        event: { id: "ev1", name: "ゾンビラン", desc: "ゾンビになって戦え！" },
-        rule: { key: "clam", name: "ガチアサリ" },
-        stages: [{ id: 1, name: "ステージA", image: "" }],
+        event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "ゾンビになって戦え！" },
+        rule: { id: "VnNSdWxlLTQ=", key: "clam", name: "ガチアサリ" },
+        stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "ステージA", image: "" }],
+        timePeriods: [{ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z" }],
       }),
     ];
     const result = formatEventEntries(entries);
     expect(result).toContain("<t:1705312800:f>");
     expect(result).toContain("<t:1705320000:f>");
     expect(result).toContain("<t:1705312800:R>");
-    expect(result).not.toMatch(/\d+\/\d+ \d+:\d+/); // 旧形式がないこと
+    expect(result).not.toMatch(/\d+\/\d+ \d+:\d+/);
   });
 
   it("イベント名・説明・ルール・ステージ情報を表示する", () => {
     const entries: EventScheduleEntry[] = [
       makeEventEntry({
-        startTime: "2024-01-15T10:00:00Z",
-        endTime: "2024-01-15T12:00:00Z",
-        event: { id: "ev1", name: "ゾンビラン", desc: "ゾンビになって戦え！" },
-        rule: { key: "clam", name: "ガチアサリ" },
-        stages: [{ id: 1, name: "ステージA", image: "" }, { id: 2, name: "ステージB", image: "" }],
+        event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "ゾンビになって戦え！" },
+        rule: { id: "VnNSdWxlLTQ=", key: "clam", name: "ガチアサリ" },
+        stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "ステージA", image: "" }, { id: "VnNTdGFnZS0y", vsStageId: 2, name: "ステージB", image: "" }],
+        timePeriods: [{ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z" }],
       }),
     ];
     const result = formatEventEntries(entries);
@@ -348,30 +272,26 @@ describe("formatEventEntries", () => {
     expect(result).toContain("ステージ: ステージA, ステージB");
   });
 
-  it("同一イベントをグルーピングして時刻を列挙形式で表示する", () => {
+  it("timePeriods で複数時間帯を列挙形式で表示する", () => {
     const entries: EventScheduleEntry[] = [
       makeEventEntry({
-        startTime: "2024-01-15T00:00:00Z",
-        endTime: "2024-01-15T02:00:00Z",
-        event: { id: "ev1", name: "ゾンビラン", desc: "ゾンビになって戦え！" },
-      }),
-      makeEventEntry({
-        startTime: "2024-01-15T04:00:00Z",
-        endTime: "2024-01-15T06:00:00Z",
-        event: { id: "ev1", name: "ゾンビラン", desc: "ゾンビになって戦え！" },
+        event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "ゾンビになって戦え！" },
+        timePeriods: [
+          { startTime: "2024-01-15T00:00:00Z", endTime: "2024-01-15T02:00:00Z" },
+          { startTime: "2024-01-15T04:00:00Z", endTime: "2024-01-15T06:00:00Z" },
+        ],
       }),
     ];
     const result = formatEventEntries(entries);
     // イベント名は1回だけ
     const matches = result!.match(/\*\*ゾンビラン\*\*/g);
     expect(matches).toHaveLength(1);
-    // 時刻が列挙形式で表示される（2つの時刻範囲がカンマ区切り）
     // 00:00〜02:00
-    expect(result).toContain("<t:1705276800:f>");  // 00:00 start
-    expect(result).toContain("<t:1705284000:f>");  // 02:00 end
+    expect(result).toContain("<t:1705276800:f>");
+    expect(result).toContain("<t:1705284000:f>");
     // 04:00〜06:00
-    expect(result).toContain("<t:1705291200:f>");  // 04:00 start
-    expect(result).toContain("<t:1705298400:f>");  // 06:00 end
+    expect(result).toContain("<t:1705291200:f>");
+    expect(result).toContain("<t:1705298400:f>");
     // 最初の時刻範囲の相対時刻
     expect(result).toContain("<t:1705276800:R>");
   });
@@ -383,9 +303,8 @@ describe("formatEventEntries", () => {
 
 function makeFestEntry(overrides: Partial<FestScheduleEntry> & { startTime: string; endTime: string }): FestScheduleEntry {
   return {
-    rule: { key: "turf_war", name: "ナワバリバトル" },
-    stages: [{ id: 1, name: "ステージA", image: "" }, { id: 2, name: "ステージB", image: "" }],
-    isFest: true,
+    rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" },
+    stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "ステージA", image: "" }, { id: "VnNTdGFnZS0y", vsStageId: 2, name: "ステージB", image: "" }],
     isTricolor: false,
     tricolorStages: null,
     ...overrides,
@@ -406,8 +325,8 @@ describe("formatFestEntries", () => {
     const entries = [makeFestEntry({
       startTime: "2024-01-15T10:00:00Z",
       endTime: "2024-01-15T12:00:00Z",
-      rule: { key: "turf_war", name: "ナワバリバトル" },
-      stages: [{ id: 1, name: "ステージA", image: "" }, { id: 2, name: "ステージB", image: "" }],
+      rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" },
+      stages: [{ id: "VnNTdGFnZS0x", vsStageId: 1, name: "ステージA", image: "" }, { id: "VnNTdGFnZS0y", vsStageId: 2, name: "ステージB", image: "" }],
     })];
     const result = formatFestEntries(entries);
     expect(result).toContain("ルール: ナワバリバトル");
@@ -419,7 +338,7 @@ describe("formatFestEntries", () => {
       startTime: "2024-01-15T10:00:00Z",
       endTime: "2024-01-15T12:00:00Z",
       isTricolor: true,
-      tricolorStages: [{ id: 10, name: "トリカラステージX", image: "" }],
+      tricolorStages: [{ id: "VnNTdGFnZS0xMA==", vsStageId: 10, name: "トリカラステージX", image: "" }],
     })];
     const result = formatFestEntries(entries);
     expect(result).toContain("トリカラステージ: トリカラステージX");
@@ -444,38 +363,36 @@ describe("formatFestEntries", () => {
 describe("buildScheduleEmbeds", () => {
   const now = new Date("2024-01-15T10:00:00Z");
 
-  function makeBattle(overrides?: Partial<BattleSchedules>): BattleSchedules {
+  function makeSchedules(overrides?: Partial<Schedules>): Schedules {
     return {
       regular: [
-        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { key: "turf_war", name: "ナワバリバトル" } }),
+        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" } }),
       ],
       bankaraChallenge: [
-        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { key: "area", name: "ガチエリア" } }),
+        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { id: "VnNSdWxlLTE=", key: "area", name: "ガチエリア" } }),
       ],
       bankaraOpen: [
-        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { key: "clam", name: "ガチアサリ" } }),
+        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { id: "VnNSdWxlLTQ=", key: "clam", name: "ガチアサリ" } }),
       ],
       x: [
-        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { key: "tower", name: "ガチヤグラ" } }),
+        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { id: "VnNSdWxlLTI=", key: "tower", name: "ガチヤグラ" } }),
       ],
       event: [],
       fest: [],
-      festChallenge: [],
+      coop: [
+        makeCoopEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-16T10:00:00Z" }),
+      ],
       ...overrides,
     };
   }
 
-  const coop: CoopScheduleEntry[] = [
-    makeCoopEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-16T10:00:00Z" }),
-  ];
-
   it("通常時（イベントマッチ・フェスなし）にEmbed数が5である（バトル4+サーモンラン）", () => {
-    const embeds = buildScheduleEmbeds(makeBattle(), coop, now);
+    const embeds = buildScheduleEmbeds(makeSchedules(), now);
     expect(embeds).toHaveLength(5);
   });
 
   it("各バトルEmbedのタイトルと色が正しい", () => {
-    const embeds = buildScheduleEmbeds(makeBattle(), coop, now);
+    const embeds = buildScheduleEmbeds(makeSchedules(), now);
     expect(embeds[0].data.title).toBe("ナワバリバトル");
     expect(embeds[0].data.color).toBe(0x19d719); // Colors.Regular
     expect(embeds[1].data.title).toBe("バンカラマッチ チャレンジ");
@@ -487,72 +404,71 @@ describe("buildScheduleEmbeds", () => {
   });
 
   it("サーモンランが独立Embedとして存在する", () => {
-    const embeds = buildScheduleEmbeds(makeBattle(), coop, now);
+    const embeds = buildScheduleEmbeds(makeSchedules(), now);
     expect(embeds[4].data.title).toBe("サーモンラン");
     expect(embeds[4].data.color).toBe(0xff6600); // Colors.SalmonRun
   });
 
   it("ナワバリバトルEmbedにルール行がない", () => {
-    const embeds = buildScheduleEmbeds(makeBattle(), coop, now);
+    const embeds = buildScheduleEmbeds(makeSchedules(), now);
     expect(embeds[0].data.description).not.toContain("ルール:");
   });
 
   it("バンカラ・XマッチEmbedにルール行がある", () => {
-    const embeds = buildScheduleEmbeds(makeBattle(), coop, now);
+    const embeds = buildScheduleEmbeds(makeSchedules(), now);
     expect(embeds[1].data.description).toContain("ルール: ガチエリア");
     expect(embeds[2].data.description).toContain("ルール: ガチアサリ");
     expect(embeds[3].data.description).toContain("ルール: ガチヤグラ");
   });
 
   it("イベントマッチ存在時にEmbed数が6である", () => {
-    const battle = makeBattle({
+    const schedules = makeSchedules({
       event: [
         makeEventEntry({
-          startTime: "2024-01-15T10:00:00Z",
-          endTime: "2024-01-15T12:00:00Z",
-          event: { id: "ev1", name: "ゾンビラン", desc: "説明" },
+          event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "説明" },
+          timePeriods: [{ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z" }],
         }),
       ],
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     expect(embeds).toHaveLength(6);
     expect(embeds[5].data.title).toBe("イベントマッチ");
     expect(embeds[5].data.color).toBe(0xe510c9); // Colors.Event
   });
 
   it("フェス存在時にEmbed数が6である", () => {
-    const battle = makeBattle({
+    const schedules = makeSchedules({
       fest: [
         makeFestEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z" }),
       ],
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     expect(embeds).toHaveLength(6);
     expect(embeds[5].data.title).toBe("フェス");
   });
 
   it("24hフィルタで全バトルエントリが除外された場合はバトルEmbedが省略される", () => {
-    const battle = makeBattle({
-      regular: [makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z", rule: { key: "turf_war", name: "ナワバリバトル" } })],
+    const schedules = makeSchedules({
+      regular: [makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z", rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" } })],
       bankaraChallenge: [makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z" })],
       bankaraOpen: [makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z" })],
       x: [makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z" })],
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     // バトルEmbed全省略、サーモンランのみ
     expect(embeds).toHaveLength(1);
     expect(embeds[0].data.title).toBe("サーモンラン");
   });
 
   it("24hフィルタ・連続統合が適用される", () => {
-    const battle = makeBattle({
+    const schedules = makeSchedules({
       regular: [
-        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { key: "turf_war", name: "ナワバリバトル" } }),
-        makeEntry({ startTime: "2024-01-15T12:00:00Z", endTime: "2024-01-15T14:00:00Z", rule: { key: "turf_war", name: "ナワバリバトル" } }),
-        makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z", rule: { key: "turf_war", name: "ナワバリバトル" } }), // 24h超 → 除外
+        makeEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z", rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" } }),
+        makeEntry({ startTime: "2024-01-15T12:00:00Z", endTime: "2024-01-15T14:00:00Z", rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" } }),
+        makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z", rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" } }), // 24h超 → 除外
       ],
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     const regularDesc = embeds[0].data.description!;
     // 連続統合で10:00-14:00に統合されるはず
     expect(regularDesc).toContain("<t:1705312800:f>"); // 10:00
@@ -560,26 +476,25 @@ describe("buildScheduleEmbeds", () => {
   });
 
   it("descriptionの文字数が4096以内である", () => {
-    const embeds = buildScheduleEmbeds(makeBattle(), coop, now);
+    const embeds = buildScheduleEmbeds(makeSchedules(), now);
     for (const embed of embeds) {
       expect(embed.data.description!.length).toBeLessThanOrEqual(4096);
     }
   });
 
   it("イベントマッチとフェスが両方存在する場合にEmbed数が7である", () => {
-    const battle = makeBattle({
+    const schedules = makeSchedules({
       event: [
         makeEventEntry({
-          startTime: "2024-01-15T10:00:00Z",
-          endTime: "2024-01-15T12:00:00Z",
-          event: { id: "ev1", name: "ゾンビラン", desc: "説明" },
+          event: { id: "ev1", leagueMatchEventId: "Zombie", name: "ゾンビラン", desc: "説明" },
+          timePeriods: [{ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z" }],
         }),
       ],
       fest: [
         makeFestEntry({ startTime: "2024-01-15T10:00:00Z", endTime: "2024-01-15T12:00:00Z" }),
       ],
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     expect(embeds).toHaveLength(7);
     expect(embeds[0].data.title).toBe("ナワバリバトル");
     expect(embeds[1].data.title).toBe("バンカラマッチ チャレンジ");
@@ -590,38 +505,32 @@ describe("buildScheduleEmbeds", () => {
     expect(embeds[6].data.title).toBe("フェス");
   });
 
-  it("イベントマッチが24hフィルタで除外された場合はイベントEmbedが追加されない", () => {
-    const battle = makeBattle({
-      event: [
-        makeEventEntry({
-          startTime: "2024-01-17T00:00:00Z",
-          endTime: "2024-01-17T02:00:00Z",
-          event: { id: "ev1", name: "ゾンビラン", desc: "説明" },
-        }),
-      ],
+  it("イベントマッチが空の場合はイベントEmbedが追加されない", () => {
+    const schedules = makeSchedules({
+      event: [],
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     expect(embeds).toHaveLength(5);
     expect(embeds.every((e) => e.data.title !== "イベントマッチ")).toBe(true);
   });
 
   it("フェスが24hフィルタで除外された場合はフェスEmbedが追加されない", () => {
-    const battle = makeBattle({
+    const schedules = makeSchedules({
       fest: [
         makeFestEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z" }),
       ],
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     expect(embeds).toHaveLength(5);
     expect(embeds.every((e) => e.data.title !== "フェス")).toBe(true);
   });
 
   it("一部のバトルタイプのみ24hフィルタで除外された場合、そのEmbedだけ省略される", () => {
-    const battle = makeBattle({
-      regular: [makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z", rule: { key: "turf_war", name: "ナワバリバトル" } })],
+    const schedules = makeSchedules({
+      regular: [makeEntry({ startTime: "2024-01-17T00:00:00Z", endTime: "2024-01-17T02:00:00Z", rule: { id: "VnNSdWxlLTA=", key: "turf_war", name: "ナワバリバトル" } })],
       // 他の3タイプは24h以内
     });
-    const embeds = buildScheduleEmbeds(battle, coop, now);
+    const embeds = buildScheduleEmbeds(schedules, now);
     // ナワバリバトルのみ省略: バンカラC + バンカラO + X + サーモンラン = 4
     expect(embeds).toHaveLength(4);
     expect(embeds[0].data.title).toBe("バンカラマッチ チャレンジ");
