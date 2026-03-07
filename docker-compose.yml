@@ -1,5 +1,6 @@
 services:
   inkbot3:
+    container_name: inkbot3
     build: .
     restart: unless-stopped
     env_file:
