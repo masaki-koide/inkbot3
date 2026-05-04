@@ -117,7 +117,7 @@ const coopNodeSchema = z.object({
 const coopGroupingScheduleSchema = z.object({
   regularSchedules: z.object({ nodes: z.array(coopNodeSchema) }),
   bigRunSchedules: z.object({ nodes: z.array(coopNodeSchema) }),
-  teamContestSchedules: z.object({ nodes: z.array(coopNodeSchema) }),
+  teamContestSchedules: z.object({ nodes: z.array(z.unknown()) }),
 });
 
 // --- splatoon3.ink locale/ja-JP.json 用 Zod スキーマ ---
